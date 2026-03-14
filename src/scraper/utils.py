@@ -10,7 +10,6 @@ def get_html(url):
     except Exception as e:
         print(f"Failed to fetch {url}: {e}")
         return None
-
 def clean_text(text):
     """Strip whitespace and clean text"""
     if text:
