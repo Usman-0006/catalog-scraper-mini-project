@@ -1,81 +1,100 @@
-from .utils import get_html, resolve_url
-from .parsers import parse_categories, parse_products_from_listing, parse_product_details
+import requests
 from bs4 import BeautifulSoup
-import time
+from .utils import resolve_url
+from .parsers import parse_product_details
 
 BASE_URL = "https://webscraper.io/test-sites/e-commerce/static"
 
-def crawl_all_products():
-    all_products = []
+def get_soup(url):
+    """Fetch and parse HTML with error handling"""
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return BeautifulSoup(response.text, 'html.parser')
+    except requests.RequestException as e:
+        print(f"Error fetching {url}: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error parsing {url}: {e}")
+        return None
 
-    # 1️⃣ Get main page
-    main_html = get_html(BASE_URL)
-    if not main_html:
-        return all_products
+def discover_categories():
+    """Discover site structure (Requirement 2: Category and subcategory traversal)"""
+    soup = get_soup(BASE_URL)
+    structure = []
+    if not soup: 
+        print("Failed to discover categories from base URL")
+        return structure
 
-    # 2️⃣ Parse all main categories
-    categories = parse_categories(main_html)
+    try:
+        # Find Category links in side menu - skip the first link (Home)
+        cats = soup.select('ul#side-menu > li > a')[1:]
+        print(f"Discovering categories... found {len(cats)} categories")
+        
+        for c in cats:
+            c_name = c.text.strip()
+            c_url = resolve_url(BASE_URL, c.get('href'))
+            
+            # Find Subcategories
+            sub_soup = get_soup(c_url)
+            if sub_soup:
+                subs = sub_soup.select('ul.nav-second-level li a')
+                for sub in subs:
+                    sub_name = sub.text.strip()
+                    sub_url = resolve_url(BASE_URL, sub.get('href'))
+                    structure.append({
+                        "category": c_name,
+                        "subcategory": sub_name,
+                        "url": sub_url
+                    })
+                    print(f"  Found: {c_name} -> {sub_name}")
+            else:
+                print(f"Warning: Could not load category page for {c_name}")
+    except Exception as e:
+        print(f"Error discovering categories: {e}")
+    
+    return structure
 
-    for category_name, category_url in categories:
-        category_url = resolve_url(BASE_URL, category_url)
-        print(f"Scraping category: {category_name}")
-
-        # 3️⃣ Get subcategory page HTML
-        subcat_html = get_html(category_url)
-        if not subcat_html:
-            continue
-
-        # 4️⃣ Parse subcategories
-        subcategories = parse_categories(subcat_html)
-        # If no subcategories, treat main category as subcategory
-        if not subcategories:
-            subcategories = [(category_name, category_url)]
-
-        for subcat_name, subcat_url in subcategories:
-            subcat_url = resolve_url(BASE_URL, subcat_url)
-            print(f"  Scraping subcategory: {subcat_name}")
-
-            page = 1
-            while True:
-                # 5️⃣ Construct paginated URL
-                paged_url = f"{subcat_url}?page={page}"
-                page_html = get_html(paged_url)
-                if not page_html:
-                    break
-
-                # 6️⃣ Extract products on this page
-                products = parse_products_from_listing(page_html)
-                if not products:
-                    break
-
-                print(f"    Page {page}: {len(products)} products found")
-
-                # 7️⃣ Visit each product detail page
-                for product in products:
-                    product_url = resolve_url(BASE_URL, product["url"])
-                    html = get_html(product_url)
-                    if not html:
-                        continue
-
-                    details = parse_product_details(html)
-                    product.update(details)
-                    product["category"] = category_name
-                    product["subcategory"] = subcat_name
-                    product["product_url"] = product_url
-
-                    all_products.append(product)
-
-                    # Optional: short delay to avoid blocking
-                    time.sleep(0.1)
-
-                # 8️⃣ Check for "Next" page dynamically
-                soup = BeautifulSoup(page_html, "html.parser")
-                next_btn = soup.select_one(".pagination li.active + li a")
-                if not next_btn:
-                    break
-
-                page += 1
-
-    # 9️⃣ Remove duplicate products (by URL)
-    unique_products = {p["product_url"]: p for p in all_products}
-    return list(unique_products.values())
+def get_all_products_from_subcategory(sub_url, category, subcategory):
+    """Follows pagination and collects product links (Requirement 1: Multi-page crawling)"""
+    all_data = []
+    current_url = sub_url
+    page_num = 1
+    max_pages = 50  # Safety limit to prevent infinite loops
+    
+    while current_url and page_num <= max_pages:
+        soup = get_soup(current_url)
+        if not soup:
+            print(f"Failed to load page {page_num}")
+            break
+        
+        try:
+            # Collect product links from listing page
+            links = soup.select('div.thumbnail a.title')
+            print(f"  Page {page_num}: Found {len(links)} products")
+            
+            for link in links:
+                try:
+                    p_url = resolve_url(BASE_URL, link.get('href'))
+                    p_soup = get_soup(p_url)
+                    if p_soup:
+                        # Requirement 3: Detail page scraping
+                        product = parse_product_details(p_soup, p_url, category, subcategory, page_num)
+                        all_data.append(product)
+                except Exception as e:
+                    print(f"Error processing product link: {e}")
+                    continue
+            
+            # Requirement 4: URL resolution for pagination
+            next_btn = soup.select_one('ul.pagination li a[aria-label="Next »"]')
+            if next_btn and next_btn.get('href'):
+                current_url = resolve_url(BASE_URL, next_btn.get('href'))
+                page_num += 1
+            else:
+                current_url = None  # No more pages
+        
+        except Exception as e:
+            print(f"Error processing page {page_num}: {e}")
+            break
+    
+    return all_data
