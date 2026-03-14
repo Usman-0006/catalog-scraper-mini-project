@@ -1,35 +1,62 @@
 from .utils import get_html, resolve_url
-from .parsers import parse_products_from_listing, parse_product_details
+from .parsers import parse_categories, parse_products_from_listing, parse_product_details
+import time
 
 BASE_URL = "https://webscraper.io/test-sites/e-commerce/static"
 
+def crawl_all_products():
+    all_products = []
 
-def crawl_products():
+    main_html = get_html(BASE_URL)
+    if not main_html:
+        return all_products
 
-    products = []
+    categories = parse_categories(main_html)
 
-    start_html = get_html(BASE_URL)
+    for category_name, category_url in categories:
+        category_url = resolve_url(BASE_URL, category_url)
+        print(f"Scraping category: {category_name}")
 
-    if not start_html:
-        return products
-
-    listing = parse_products_from_listing(start_html)
-
-    for product in listing:
-
-        product_url = resolve_url(BASE_URL, product["url"])
-
-        html = get_html(product_url)
-
-        if not html:
+        subcat_html = get_html(category_url)
+        if not subcat_html:
             continue
 
-        details = parse_product_details(html)
+        subcategories = parse_categories(subcat_html)
+        if not subcategories:
+            subcategories = [(category_name, category_url)]
 
-        product.update(details)
+        for subcat_name, subcat_url in subcategories:
+            subcat_url = resolve_url(BASE_URL, subcat_url)
+            print(f"  Scraping subcategory: {subcat_name}")
 
-        product["product_url"] = product_url
+            page = 1
+            while True:
+                paged_url = f"{subcat_url}?page={page}"
+                page_html = get_html(paged_url)
+                if not page_html:
+                    break
 
-        products.append(product)
+                products = parse_products_from_listing(page_html)
+                if not products:
+                    break
 
-    return products
+                for product in products:
+                    product_url = resolve_url(BASE_URL, product["url"])
+                    html = get_html(product_url)
+                    if not html:
+                        continue
+
+                    details = parse_product_details(html)
+                    product.update(details)
+                    product["category"] = category_name
+                    product["subcategory"] = subcat_name
+                    product["product_url"] = product_url
+
+                    all_products.append(product)
+
+                    # Optional: small delay to avoid server overload
+                    time.sleep(0.5)
+
+                page += 1  # next page
+
+    return all_products
