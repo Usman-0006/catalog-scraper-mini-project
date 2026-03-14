@@ -1,6 +1,4 @@
-category,subcategory,total_products,avg_price,min_price,max_price,missing_descriptions
-Computers,Laptops,111,922.858018018018,295.99,1799.0,0
-Computers,Tablets,20,237.09,69.99,603.99,0
-Phones,Computers,3,694.9233333333333,416.99,1179.0,0
-Phones,Home,3,550.5233333333333,130.99,1221.58,0
-Phones,Touch,9,400.65666666666664,24.99,899.99,0
+category,subcategory,total_products,average_price,min_price,max_price,missing_descriptions,products_with_images,duplicates_removed
+Computers,Laptops,117,909.39,295.99,1799.0,0,117,0
+Computers,Tablets,21,232.04,69.99,603.99,0,21,0
+Phones,Touch,9,400.66,24.99,899.99,0,9,0
