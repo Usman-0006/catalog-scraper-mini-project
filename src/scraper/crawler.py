@@ -8,21 +8,26 @@ BASE_URL = "https://webscraper.io/test-sites/e-commerce/static"
 def crawl_all_products():
     all_products = []
 
+    # 1️⃣ Get main page
     main_html = get_html(BASE_URL)
     if not main_html:
         return all_products
 
+    # 2️⃣ Parse all main categories
     categories = parse_categories(main_html)
 
     for category_name, category_url in categories:
         category_url = resolve_url(BASE_URL, category_url)
         print(f"Scraping category: {category_name}")
 
+        # 3️⃣ Get subcategory page HTML
         subcat_html = get_html(category_url)
         if not subcat_html:
             continue
 
+        # 4️⃣ Parse subcategories
         subcategories = parse_categories(subcat_html)
+        # If no subcategories, treat main category as subcategory
         if not subcategories:
             subcategories = [(category_name, category_url)]
 
@@ -32,17 +37,20 @@ def crawl_all_products():
 
             page = 1
             while True:
+                # 5️⃣ Construct paginated URL
                 paged_url = f"{subcat_url}?page={page}"
                 page_html = get_html(paged_url)
                 if not page_html:
                     break
 
+                # 6️⃣ Extract products on this page
                 products = parse_products_from_listing(page_html)
                 if not products:
                     break
 
                 print(f"    Page {page}: {len(products)} products found")
 
+                # 7️⃣ Visit each product detail page
                 for product in products:
                     product_url = resolve_url(BASE_URL, product["url"])
                     html = get_html(product_url)
@@ -54,12 +62,13 @@ def crawl_all_products():
                     product["category"] = category_name
                     product["subcategory"] = subcat_name
                     product["product_url"] = product_url
+
                     all_products.append(product)
 
-                    # Optional: short delay to be safe
-                    time.sleep(0.2)
+                    # Optional: short delay to avoid blocking
+                    time.sleep(0.1)
 
-                # Check if “Next” page exists
+                # 8️⃣ Check for "Next" page dynamically
                 soup = BeautifulSoup(page_html, "html.parser")
                 next_btn = soup.select_one(".pagination li.active + li a")
                 if not next_btn:
@@ -67,4 +76,6 @@ def crawl_all_products():
 
                 page += 1
 
-    return all_products
+    # 9️⃣ Remove duplicate products (by URL)
+    unique_products = {p["product_url"]: p for p in all_products}
+    return list(unique_products.values())
