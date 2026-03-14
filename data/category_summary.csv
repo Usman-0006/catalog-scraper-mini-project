@@ -1,4 +1,8 @@
-title,avg_price,min_price,max_price,total_products
-Asus VivoBook...,295.99,295.99,295.99,1
-Dell Latitude...,1143.4,1143.4,1143.4,1
-Toshiba Porteg...,1154.04,1154.04,1154.04,1
+category,subcategory,total_products,avg_price,min_price,max_price,missing_descriptions
+Computers,Laptops,111,913.6426126126127,295.99,1799.0,0
+Computers,Phones,2,262.49,24.99,499.99,0
+Computers,Tablets,20,238.24,69.99,603.99,0
+Home,Computers,3,993.7966666666667,679.0,1178.19,0
+Home,Home,3,604.1166666666667,107.99,1271.06,0
+Home,Phones,3,367.99,93.99,899.99,0
+Phones,Touch,4,494.24,57.99,899.99,0
