@@ -1,5 +1,6 @@
 from .utils import get_html, resolve_url
 from .parsers import parse_categories, parse_products_from_listing, parse_product_details
+from bs4 import BeautifulSoup
 import time
 
 BASE_URL = "https://webscraper.io/test-sites/e-commerce/static"
@@ -40,6 +41,8 @@ def crawl_all_products():
                 if not products:
                     break
 
+                print(f"    Page {page}: {len(products)} products found")
+
                 for product in products:
                     product_url = resolve_url(BASE_URL, product["url"])
                     html = get_html(product_url)
@@ -51,12 +54,17 @@ def crawl_all_products():
                     product["category"] = category_name
                     product["subcategory"] = subcat_name
                     product["product_url"] = product_url
-
                     all_products.append(product)
 
-                    # Optional: small delay to avoid server overload
-                    time.sleep(0.5)
+                    # Optional: short delay to be safe
+                    time.sleep(0.2)
 
-                page += 1  # next page
+                # Check if “Next” page exists
+                soup = BeautifulSoup(page_html, "html.parser")
+                next_btn = soup.select_one(".pagination li.active + li a")
+                if not next_btn:
+                    break
+
+                page += 1
 
     return all_products
